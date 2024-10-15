@@ -1,1 +1,347 @@
 
+
+
+import streamlit as st
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from pptx import Presentation
+from pptx.util import Inches
+from io import BytesIO
+import io
+import os 
+
+def round_to_sig_figs(df):
+    def round_sig(x):
+        if pd.isna(x):
+            return x
+        elif x == 0:
+            return 0
+        else:
+            order_of_magnitude = int(np.floor(np.log10(abs(x))))
+            decimal_places = 4 - order_of_magnitude
+            if decimal_places < 0:
+                rounded_value = round(x, 0)
+            else:
+                rounded_value = round(x, decimal_places)
+            return int(rounded_value) if rounded_value == int(rounded_value) else rounded_value
+
+    return df.applymap(round_sig)
+
+def create_formatted_table_matplotlib(data, color_columns, for_ppt=False):
+    fig, ax = plt.subplots(figsize=(12, 0.6 * (len(data) + 1)))
+    ax.axis('tight')
+    ax.axis('off')
+
+    table_data = data.copy()
+    table_data = table_data.round(2)
+
+    table = ax.table(cellText=table_data.values, colLabels=table_data.columns, cellLoc='center', loc='center')
+
+    for (i, j), cell in table.get_celld().items():
+        if i == 0:
+            cell.set_fontsize(14)
+            cell.set_text_props(weight='bold')
+            cell.set_facecolor('white')
+        else:
+            value = table_data.iloc[i - 1, j]
+            if pd.isna(value):
+                cell.set_facecolor((0.8, 0.8, 0.8, 1))
+            elif data.columns[j] in color_columns and pd.api.types.is_numeric_dtype(data[data.columns[j]]):
+                column_max = data[data.columns[j]].max()
+                column_min = data[data.columns[j]].min()
+                normalized_value = (value - column_min) / (column_max - column_min) if column_max > column_min else 0
+                color = plt.cm.RdPu(normalized_value)
+                cell.set_facecolor((*color[:3], 0.6))
+            else:
+                cell.set_facecolor((1, 1, 1, 1))
+
+        cell.set_edgecolor('grey')
+        cell.set_linewidth(0.5)
+        cell.set_height(0.05 if not for_ppt else 0.1)
+
+    for key, cell in table.get_celld().items():
+        cell.set_fontsize(12)
+
+    return fig
+
+def fig_to_bytes(fig):
+    img_buf = BytesIO()
+    plt.savefig(img_buf, format='png', bbox_inches='tight', dpi=300)
+    plt.close(fig)
+    img_buf.seek(0)
+    return img_buf
+
+def create_ppt(slides_data, color_columns, title):
+    prs = Presentation()
+    for chunk in slides_data:
+        slide = prs.slides.add_slide(prs.slide_layouts[5])
+
+        # Add title to slide with smaller font and higher position
+        title_box = slide.shapes.title
+        title_box.text = title
+        title_box.text_frame.paragraphs[0].font.size = Inches(0.3)  # Smaller text size
+        title_box.top = Inches(0.1)  # Higher position
+
+        # Create a formatted table as a matplotlib figure
+        fig = create_formatted_table_matplotlib(chunk, color_columns, for_ppt=True)
+        img_buf = fig_to_bytes(fig)
+        
+        # Add image to slide with higher position
+        slide.shapes.add_picture(img_buf, Inches(0.4), Inches(1.0), width=Inches(9))  # Adjust position
+
+    return prs
+
+def export_to_excel(df, color_columns, filename='edited_table.xlsx'):
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, sheet_name='Sheet1', index=False)
+
+        workbook = writer.book
+        worksheet = writer.sheets['Sheet1']
+
+        for i, col in enumerate(df.columns):
+            if col in color_columns and pd.api.types.is_numeric_dtype(df[col]):
+                worksheet.conditional_format(1, i, len(df), i, {
+                    'type': 'data_bar',
+                    'bar_color': '#0072B8'  # Blue color
+                })
+
+    output.seek(0)
+    return output
+
+# Streamlit app
+st.title("Conditional Formatting")
+
+st.markdown("---")
+
+file_name = "aggregated.xlsx"
+st.markdown("""<h4 style='color: #007BA7;'>Download metadata template</h4>""", unsafe_allow_html=True)
+# Check if the file exists
+if os.path.exists(file_name):
+    # Create a download button
+    with open(file_name, "rb") as file:
+        st.download_button(
+            label="Download Metadata Template",
+            data=file,
+            file_name=file_name,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"  # MIME type for Excel files
+        )
+else:
+    st.error(f"File '{file_name}' not found.")
+
+st.markdown("---")
+
+st.markdown("""<h4 style='color: #007BA7;'>Upload a table</h4>""", unsafe_allow_html=True)
+
+uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx"])
+
+if uploaded_file is not None:
+    df = pd.read_excel(uploaded_file)
+    df.replace('Not Provided', np.nan, inplace=True)
+    df = round_to_sig_figs(df)
+
+    st.markdown("""<h4 style='color: #007BA7;'>View uploaded table</h4>""", unsafe_allow_html=True)
+    # Create an expander for the DataFrame
+    with st.expander("View Imported Table", expanded=False):
+        st.write(df)
+
+    sort_columns = df.columns.tolist()
+
+    st.markdown("""<hr><h4 style='color: #007BA7;'>Sort table and highlight values</h4>""", unsafe_allow_html=True)
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("""<br><h4 style='color: #007BA7;'>Sort rows by:</h4>""", unsafe_allow_html=True)
+
+        selected_sort_columns = st.multiselect("", options=sort_columns, key = "verte")
+
+        if selected_sort_columns:
+            df = df.sort_values(by=selected_sort_columns)
+
+    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    with col2:
+        st.markdown("""<br><h4 style='color: #007BA7;'>Highlight values in:</h4>""", unsafe_allow_html=True)
+
+        color_columns = st.multiselect("", options=numeric_cols, key = "midnight")
+
+    fig = create_formatted_table_matplotlib(df, color_columns)
+    st.pyplot(fig)
+
+    slides_data = [df[i:i + 5] for i in range(0, df.shape[0], 5)]
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("""<h4 style='color: #007BA7;'>Export to Powerpoint</h4>""", unsafe_allow_html=True)
+
+        ppt_title = st.text_input("Enter title for PowerPoint slides", "Title of the slide")
+        ppt_filename = st.text_input("Enter PowerPoint file name (without extension)", "formatted_table_presentation")
+        
+        if st.button("Export and Download PowerPoint"):
+            prs = create_ppt(slides_data, color_columns, ppt_title)
+            ppt_file_path = f"{ppt_filename}.pptx"  # Use custom filename
+            prs.save(ppt_file_path)
+
+            with open(ppt_file_path, "rb") as file:
+                st.download_button("Download PowerPoint", file, file_name=ppt_file_path, mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
+                
+            st.success("PowerPoint presentation created! You can download it below.")
+
+    with col2:
+        st.markdown("""<h4 style='color: #007BA7;'>Export to Excel Table</h4>""", unsafe_allow_html=True)
+        excel_filename = st.text_input("Enter Excel file name (without extension)", "formatted_table")
+        
+        if st.button("Export and Download Excel"):
+            excel_file = export_to_excel(df, color_columns)
+            excel_file_path = f"{excel_filename}.xlsx"  # Use custom filename
+            with open(excel_file_path, "wb") as file:
+                file.write(excel_file.getvalue())
+            st.download_button("Download Excel", excel_file, file_name=excel_file_path, mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+
+
+
+
+
+
+
+
+
+
+import streamlit as st
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+from io import BytesIO
+from pptx import Presentation
+from pptx.util import Inches
+
+# Function to add repeated column
+def add_repeated_column(df, repeat_count):
+    n = len(df)
+    repeated_values = np.repeat(np.arange(1, (n // repeat_count) + 2), repeat_count)[:n]
+    df['repeated_column'] = repeated_values
+    return df
+
+def split_groups(df):
+    return {group: group_df for group, group_df in df.groupby('group') if len(group_df) > 1}
+
+def round_to_sig_figs(x, sig_figs):
+    if x == 0:
+        return 0
+    else:
+        return round(x, sig_figs - int(np.floor(np.log10(abs(x)))) - 1)
+
+
+def create_bar_plot(data, x_param, y_param, fill_param, group_name, threshold):
+    plt.figure(figsize=(10, 6))
+    
+    # Create the bar plot with x and y flipped
+    bar_plot = sns.barplot(data=data, x=y_param, y=x_param, hue=fill_param, 
+                           estimator='mean', palette=["#1E90FF", "#1E3A78"], alpha=0.7)
+    
+    for i in range(len(data)):
+        plt.scatter(data[y_param].iloc[i], data[x_param].iloc[i], color='black', alpha=0.7, zorder=5)
+        
+        # Annotate bars with readout values if they exceed the threshold
+        if data[y_param].iloc[i] > threshold:
+            rounded_value = round_to_sig_figs(data[y_param].iloc[i], 3)
+            plt.text(data[y_param].iloc[i] + 1, i, f'{rounded_value}', 
+                    color='red', ha='left', va='center', fontsize=14)
+
+
+    # Set font size
+    plt.title(f"{group_name} - Dil.", fontsize=16)
+    plt.ylabel(None, fontsize=14)
+    plt.xlabel(fill_param, fontsize=14)
+    plt.legend(fontsize=14, title_fontsize='14', loc='upper right', bbox_to_anchor=(1.2, 1))
+    
+    # Adjust overall font size
+    plt.tick_params(labelsize=14)
+    plt.tight_layout()
+    
+    return plt
+
+# Function to create PowerPoint
+def create_ppt(plot_images):
+    prs = Presentation()
+    for img in plot_images:
+        slide = prs.slides.add_slide(prs.slide_layouts[5])  # Blank slide
+        left = top = Inches(1)
+        slide.shapes.add_picture(img, left, top, height=Inches(5))
+    ppt_buffer = BytesIO()
+    prs.save(ppt_buffer)
+    ppt_buffer.seek(0)
+    return ppt_buffer
+
+# Streamlit app
+st.title("Generate Bar Charts")
+
+# File upload
+uploaded_file = st.file_uploader("Choose a CSV or Excel file", type=["csv", "xlsx"])
+if uploaded_file:
+    if uploaded_file.name.endswith('.csv'):
+        df = pd.read_csv(uploaded_file)
+    else:
+        sheet_name = st.selectbox("Select sheet", pd.ExcelFile(uploaded_file).sheet_names)
+        df = pd.read_excel(uploaded_file, sheet_name=sheet_name)
+
+    # Column selection
+    names_col = st.selectbox("Select 'names' column", df.columns)
+    readouts_col = st.selectbox("Select 'readouts' column", df.columns)
+    class_col = st.selectbox("Select 'class' column", df.columns)
+    group_col = st.selectbox("Select 'group' column", df.columns)
+    
+    # Integer selector
+    analyte_count_per_plot = st.number_input("Select analyte count per plot", min_value=1, max_value=20, value=4)
+
+    # Threshold input
+    threshold = st.number_input("Set threshold for readouts", min_value=0.0, value=0.0)
+
+    # Process the data
+    df_final = (df.groupby([group_col, class_col])
+                .apply(lambda x: add_repeated_column(x, analyte_count_per_plot) if x[class_col].iloc[0] == 'analyte' else x)
+                .reset_index(drop=True))
+
+    uq_vals = df_final['repeated_column'].unique()
+    discrete_groups = split_groups(df_final)
+
+    # Create plots
+    plot_images = []
+    result_dict = {}
+    for val in uq_vals:
+        filtered_tables = {}
+        for group, disc_group in discrete_groups.items():
+            filtered_df = disc_group[(disc_group['repeated_column'] == val) | (disc_group['repeated_column'].isna())]
+            if filtered_df[class_col].notna().any():
+                filtered_tables[group] = filtered_df
+        
+        if filtered_tables:
+            result_dict[val] = filtered_tables
+            for group_name, data in filtered_tables.items():
+                # Skip plotting if the data has only one row
+                if len(data) <= 1:
+                    continue
+                
+                plt = create_bar_plot(data, names_col, readouts_col, class_col, group_name, threshold)
+                
+                # Display plot in Streamlit
+                st.pyplot(plt)
+
+                # Save plot to BytesIO for PowerPoint
+                img = BytesIO()
+                plt.savefig(img, format='png')
+                plt.close()
+                img.seek(0)
+                plot_images.append(img)
+
+    # Download PowerPoint
+    if st.button("Download PowerPoint"):
+        ppt_buffer = create_ppt(plot_images)
+        st.download_button("Download PPTX", ppt_buffer, file_name="plots.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
+
+
+
