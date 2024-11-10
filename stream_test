@@ -1,347 +1,629 @@
 
+# import streamlit as st
+# from PIL import Image
+# import cairosvg
+# import os
+# from io import BytesIO
+# from concurrent.futures import ThreadPoolExecutor
+# from pptx import Presentation
+# from pptx.util import Inches
+# import io
+# import uuid
+
+# # Function to convert image to PNG
+# def convert_image_to_png(uploaded_file):
+#     ext = os.path.splitext(uploaded_file.name)[1].lower()
+#     print(f"Uploading file: {uploaded_file.name}, File extension: {ext}")
+
+#     # Create a unique temporary file path for output
+#     unique_id = str(uuid.uuid4())  # Unique identifier to avoid conflicts
+#     temp_input_path = f"/tmp/uploaded_image_{unique_id}.jpg"
+#     output_path = f"/tmp/converted_{unique_id}.png"
+
+#     try:
+#         # Save the uploaded file to disk
+#         with open(temp_input_path, "wb") as f:
+#             f.write(uploaded_file.getbuffer())
+
+#         # Check if file is empty
+#         if os.path.getsize(temp_input_path) == 0:
+#             raise ValueError(f"Uploaded file {uploaded_file.name} is empty.")
+
+#         # Verify and process image based on type
+#         try:
+#             if ext in ['.jpg', '.jpeg', '.tiff', '.png']:  # Raster formats
+#                 with Image.open(temp_input_path) as img:
+#                     img.verify()  # Verify image to check if it's valid
+#                     img = Image.open(temp_input_path)  # Reopen after verify
+#                     img.save(output_path, format="PNG")  # Save as PNG
+#             elif ext == '.svg':  # SVG format needs conversion
+#                 cairosvg.svg2png(url=temp_input_path, write_to=output_path)
+#             else:
+#                 raise ValueError(f"Unsupported file format: {ext}")
+#         except Exception as e:
+#             raise ValueError(f"Error processing image: {e}")
+
+#         # Clean up the temporary input file (no longer needed after conversion)
+#         os.remove(temp_input_path)
+        
+#         return output_path  # Return the path to the converted PNG file
+
+#     except Exception as e:
+#         raise ValueError(f"Error processing image: {e}")
+
+
+# # Function to process multiple files concurrently
+# def process_files_concurrently(files):
+#     # Process files in parallel and return converted paths
+#     with ThreadPoolExecutor() as executor:
+#         results = list(executor.map(convert_image_to_png, files))
+#     return results
+
+
+
+# def create_ppt_from_images(converted_paths, titles, margin=Inches(1/8)):
+#     prs = Presentation()
+#     for idx, converted_path in enumerate(converted_paths):
+#         if not os.path.exists(converted_path):
+#             raise FileNotFoundError(f"Converted image {converted_path} not found.")
+#         with Image.open(converted_path) as image:
+#             img_width, img_height = image.size
+#         slide_layout = prs.slide_layouts[5]
+#         slide = prs.slides.add_slide(slide_layout)
+#         if titles[idx]:
+#             title = titles[idx]
+#             title_shape = slide.shapes.add_textbox(Inches(0.5), Inches(0.5), Inches(1), Inches(1))
+#             title_text_frame = title_shape.text_frame
+#             title_text_frame.text = title
+#             for paragraph in title_text_frame.paragraphs:
+#                 for run in paragraph.runs:
+#                     run.font.size = Inches(0.5)
+#         slide_width = prs.slide_width
+#         slide_height = prs.slide_height
+#         available_width = slide_width - 2 * margin
+#         available_height = slide_height - margin - Inches(1.0)
+#         aspect_ratio = img_width / img_height
+#         new_width = available_width
+#         new_height = new_width / aspect_ratio
+#         if new_height > available_height:
+#             new_height = available_height
+#             new_width = new_height * aspect_ratio
+#         left = (slide_width - new_width) / 2
+#         top = Inches(1.3)
+#         if top + new_height > slide_height - margin:
+#             new_height = slide_height - margin - top
+#         with io.BytesIO() as image_stream:
+#             image = Image.open(converted_path)
+#             image.save(image_stream, format='PNG')
+#             image_stream.seek(0)
+#             slide.shapes.add_picture(image_stream, left, top, width=new_width, height=new_height)
+#         os.remove(converted_path)
+#     return prs
+
+
+
+
+# # Streamlit UI
+# st.title("Image to PowerPoint Converter")
+
+# # File uploader for multiple files
+# uploaded_files = st.file_uploader("Choose images...", type=["jpg", "jpeg", "tiff", "svg", "png"], accept_multiple_files=True)
+
+# if uploaded_files:
+#     # Process files and get converted paths
+#     converted_paths = process_files_concurrently(uploaded_files)
+#     st.session_state['converted_paths'] = converted_paths  # Store converted paths in session state
+
+#     titles = []
+#     col1, col2 = st.columns([2, 1])
+
+#     for idx, converted_path in enumerate(converted_paths):
+#         with col1:
+#             title = st.text_input(f"Enter slide title for image {idx + 1}", key=f"title_{idx}")
+#             titles.append(title)
+#         with col2:
+#             img = Image.open(converted_path)
+#             st.image(img, caption=f"Uploaded Image {idx + 1}", width=200)
+
+#     st.session_state['titles'] = titles  # Store titles in session state
+
+#     set_margin = st.slider(
+#         label="Set image margin (inches)", 
+#         min_value=0.125,  # 1/8 inch
+#         max_value=3.0,    # 3 inches
+#         value=0.5,        # Default: 3/8 inch
+#         step=0.125,       # Step: 1/8 inch
+#         format="%.3f"     # Format the slider to display in inches
+#     )
+
+#     margin_in_inches = Inches(set_margin)
+
+
+#     # PowerPoint generation logic
+#     if st.button("Generate PowerPoint"):
+#         if not converted_paths:
+#             st.error("Please upload images and provide titles.")
+#         else:
+#             # Set margin for images in PowerPoint
+
+
+#             # Create PowerPoint presentation
+#             prs = create_ppt_from_images(converted_paths, titles, margin=margin_in_inches)
+
+#             # Save PowerPoint to BytesIO
+#             pptx_file = io.BytesIO()
+#             prs.save(pptx_file)
+#             pptx_file.seek(0)
+
+#             # Button to download PowerPoint file
+#             st.download_button(
+#                 label="Download PowerPoint",
+#                 data=pptx_file,
+#                 file_name="images_presentation.pptx",
+#                 mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+#             )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#UNify this script into one. The goal is to be able to upload different types of images, convert to png, choose a number of slides, array the images on slides, and each slide should have it's own title, which is entered on the UI side using st.text_input
+
+# import streamlit as st
+# from PIL import Image
+# import cairosvg
+# import os
+# from io import BytesIO
+# from concurrent.futures import ThreadPoolExecutor
+# from pptx import Presentation
+# from pptx.util import Inches
+# import io
+# import uuid
+
+# # Function to convert image to PNG
+# def convert_image_to_png(uploaded_file):
+#     ext = os.path.splitext(uploaded_file.name)[1].lower()
+#     print(f"Uploading file: {uploaded_file.name}, File extension: {ext}")
+
+#     # Create a unique temporary file path for output
+#     unique_id = str(uuid.uuid4())  # Unique identifier to avoid conflicts
+#     temp_input_path = f"/tmp/uploaded_image_{unique_id}.jpg"
+#     output_path = f"/tmp/converted_{unique_id}.png"
+
+#     try:
+#         # Save the uploaded file to disk
+#         with open(temp_input_path, "wb") as f:
+#             f.write(uploaded_file.getbuffer())
+
+#         # Check if file is empty
+#         if os.path.getsize(temp_input_path) == 0:
+#             raise ValueError(f"Uploaded file {uploaded_file.name} is empty.")
+
+#         # Verify and process image based on type
+#         try:
+#             if ext in ['.jpg', '.jpeg', '.tiff', '.png']:  # Raster formats
+#                 with Image.open(temp_input_path) as img:
+#                     img.verify()  # Verify image to check if it's valid
+#                     img = Image.open(temp_input_path)  # Reopen after verify
+#                     img.save(output_path, format="PNG")  # Save as PNG
+#             elif ext == '.svg':  # SVG format needs conversion
+#                 cairosvg.svg2png(url=temp_input_path, write_to=output_path)
+#             else:
+#                 raise ValueError(f"Unsupported file format: {ext}")
+#         except Exception as e:
+#             raise ValueError(f"Error processing image: {e}")
+
+#         # Clean up the temporary input file (no longer needed after conversion)
+#         os.remove(temp_input_path)
+        
+#         return output_path  # Return the path to the converted PNG file
+
+#     except Exception as e:
+#         raise ValueError(f"Error processing image: {e}")
+
+
+# # Function to process multiple files concurrently
+# def process_files_concurrently(files):
+#     # Process files in parallel and return converted paths
+#     with ThreadPoolExecutor() as executor:
+#         results = list(executor.map(convert_image_to_png, files))
+#     return results
+
+
+# # Function to create PowerPoint slide with selected images and title text
+# def create_ppt_from_selected_images(uploaded_files, num_slides, images_per_slide, titles):
+#     prs = Presentation()
+
+#     # Slide margin in inches (1/4 inch margin)
+#     slide_margin = Inches(0.25)
+
+#     # Title space at the top of the slide (1/2 inch)
+#     title_space = Inches(0.5)
+
+#     # Loop over the number of slides
+#     for slide_idx in range(num_slides):
+#         slide_layout = prs.slide_layouts[5]  # Blank layout
+#         slide = prs.slides.add_slide(slide_layout)
+        
+#         # Get images for the current slide
+#         selected_images = images_per_slide[slide_idx]
+#         slide_title = titles[slide_idx]
+
+#         # Slide dimensions (inches)
+#         slide_width = prs.slide_width
+#         slide_height = prs.slide_height
+
+#         # Calculate the available space after accounting for margins and title space
+#         available_width = slide_width - 2 * slide_margin
+#         available_height = slide_height - title_space - 2 * slide_margin
+
+#         # Calculate positions to place images on the slide
+#         max_images_per_row = 2  # Two images per row
+#         image_spacing = Inches(0.2)  # Space between images
+#         images_in_current_slide = len(selected_images)
+
+#         # Calculate the width and height of each image based on available space
+#         if images_in_current_slide == 1:
+#             image_width = available_width
+#             image_height = available_height
+#         else:
+#             max_images_per_row = min(max_images_per_row, images_in_current_slide)
+#             image_width = (available_width - (max_images_per_row - 1) * image_spacing) / max_images_per_row
+#             num_rows = (images_in_current_slide + max_images_per_row - 1) // max_images_per_row
+#             image_height = (available_height - (num_rows - 1) * image_spacing) / num_rows
+
+#         # Add the title text at the top
+#         title_shape = slide.shapes.title
+#         title_shape.text = slide_title
+#         title_shape.left = slide_margin
+#         title_shape.top = slide_margin
+#         title_shape.width = slide_width - 2 * slide_margin  # Full width minus margins
+#         title_shape.height = title_space  # Fixed height for the title area
+
+#         # Loop through the selected images for the current slide
+#         x_offset = slide_margin
+#         y_offset = slide_margin + title_space  # Start placing images below the title
+
+#         for i, img_file in enumerate(selected_images):
+#             image = Image.open(img_file)
+#             img_width, img_height = image.size
+
+#             # Scale image while preserving aspect ratio
+#             aspect_ratio = img_width / img_height
+#             new_width = image_width
+#             new_height = image_width / aspect_ratio
+
+#             # If the new height exceeds the available height, adjust the width and height
+#             if new_height > image_height:
+#                 new_height = image_height
+#                 new_width = image_height * aspect_ratio
+
+#             # Position the images in a grid-like fashion (2 images per row)
+#             left = x_offset
+#             top = y_offset
+
+#             # Add the image to the slide
+#             with io.BytesIO() as image_stream:
+#                 image.save(image_stream, format="PNG")
+#                 image_stream.seek(0)
+#                 slide.shapes.add_picture(image_stream, left, top, width=new_width, height=new_height)
+
+#             # Update x_offset for the next image (to arrange in two columns)
+#             x_offset += new_width + image_spacing
+
+#             # If we have placed two images, reset x_offset and move to the next row
+#             if (i + 1) % max_images_per_row == 0:
+#                 x_offset = slide_margin
+#                 y_offset += new_height + image_spacing
+
+#     return prs
+
+# # Streamlit UI
+# st.title("PNG to PowerPoint Converter")
+
+# st.write(
+#     "Upload your PNG files below, and I will convert them into PowerPoint slides. "
+#     "For each slide, you can select up to 4 images to place on it."
+# )
+
+# # File uploader
+# uploaded_files = st.file_uploader("Choose PNG files", type="png", accept_multiple_files=True)
+
+# if uploaded_files:
+#     # Show number of slides selector
+#     num_slides = st.number_input("Select number of slides", min_value=1, max_value=len(uploaded_files), value=1)
+
+#     # Prepare a list to hold selected images per slide and titles
+#     images_per_slide = []
+#     slide_titles = []
+
+#     # Show multi-select options for each slide and title input
+#     for slide_idx in range(num_slides):
+#         st.subheader(f"Slide {slide_idx + 1}")
+        
+#         # Title input for each slide
+#         slide_title = st.text_input(f"Enter title for Slide {slide_idx + 1}", value=f"Slide {slide_idx + 1}")
+#         slide_titles.append(slide_title)
+        
+#         # Multi-select for images
+#         selected_images = st.multiselect(
+#             f"Select up to 4 images for Slide {slide_idx + 1}",
+#             options=uploaded_files,
+#             max_selections=4
+#         )
+#         images_per_slide.append(selected_images)
+
+#     # Generate the PowerPoint file when user is ready
+#     if st.button("Generate PowerPoint"):
+#         if images_per_slide:
+#             prs = create_ppt_from_selected_images(uploaded_files, num_slides, images_per_slide, slide_titles)
+            
+#             # Save the PowerPoint file to a BytesIO stream
+#             pptx_file = io.BytesIO()
+#             prs.save(pptx_file)
+#             pptx_file.seek(0)
+
+#             # Button to download the generated PowerPoint file
+#             st.download_button(
+#                 label="Download PowerPoint",
+#                 data=pptx_file,
+#                 file_name="images_presentation.pptx",
+#                 mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+#             )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 import streamlit as st
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
+from PIL import Image
+import cairosvg
+import os
+import uuid
 from pptx import Presentation
 from pptx.util import Inches
-from io import BytesIO
 import io
-import os 
+from io import BytesIO
+from concurrent.futures import ThreadPoolExecutor
 
-def round_to_sig_figs(df):
-    def round_sig(x):
-        if pd.isna(x):
-            return x
-        elif x == 0:
-            return 0
-        else:
-            order_of_magnitude = int(np.floor(np.log10(abs(x))))
-            decimal_places = 4 - order_of_magnitude
-            if decimal_places < 0:
-                rounded_value = round(x, 0)
+
+# Function to convert uploaded images to PNG (supporting various formats)
+def convert_image_to_png(uploaded_file):
+    ext = os.path.splitext(uploaded_file.name)[1].lower()
+    filename = os.path.splitext(uploaded_file.name)[0].lower()
+    print(f"Uploading file: {uploaded_file.name}, File extension: {ext}")
+
+    # Create a unique temporary file path for output
+    unique_id = str(uuid.uuid4())  # Unique identifier to avoid conflicts
+    temp_input_path = f"/tmp/uploaded_image_{unique_id}.jpg"
+    output_path = f"{filename}_{unique_id}.png"   #/tmp/converted_{unique_id}_{filename}.png
+
+    try:
+        # Save the uploaded file to disk
+        with open(temp_input_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+
+        # Check if file is empty
+        if os.path.getsize(temp_input_path) == 0:
+            raise ValueError(f"Uploaded file {uploaded_file.name} is empty.")
+
+        # Verify and process image based on type
+        try:
+            if ext in ['.jpg', '.jpeg', '.tiff', '.png']:  # Raster formats
+                with Image.open(temp_input_path) as img:
+                    img.verify()  # Verify image to check if it's valid
+                    img = Image.open(temp_input_path)  # Reopen after verify
+                    img.save(output_path, format="PNG")  # Save as PNG
+            elif ext == '.svg':  # SVG format needs conversion
+                cairosvg.svg2png(url=temp_input_path, write_to=output_path)
             else:
-                rounded_value = round(x, decimal_places)
-            return int(rounded_value) if rounded_value == int(rounded_value) else rounded_value
+                raise ValueError(f"Unsupported file format: {ext}")
+        except Exception as e:
+            raise ValueError(f"Error processing image: {e}")
 
-    return df.applymap(round_sig)
-
-def create_formatted_table_matplotlib(data, color_columns, for_ppt=False):
-    fig, ax = plt.subplots(figsize=(12, 0.6 * (len(data) + 1)))
-    ax.axis('tight')
-    ax.axis('off')
-
-    table_data = data.copy()
-    table_data = table_data.round(2)
-
-    table = ax.table(cellText=table_data.values, colLabels=table_data.columns, cellLoc='center', loc='center')
-
-    for (i, j), cell in table.get_celld().items():
-        if i == 0:
-            cell.set_fontsize(14)
-            cell.set_text_props(weight='bold')
-            cell.set_facecolor('white')
-        else:
-            value = table_data.iloc[i - 1, j]
-            if pd.isna(value):
-                cell.set_facecolor((0.8, 0.8, 0.8, 1))
-            elif data.columns[j] in color_columns and pd.api.types.is_numeric_dtype(data[data.columns[j]]):
-                column_max = data[data.columns[j]].max()
-                column_min = data[data.columns[j]].min()
-                normalized_value = (value - column_min) / (column_max - column_min) if column_max > column_min else 0
-                color = plt.cm.RdPu(normalized_value)
-                cell.set_facecolor((*color[:3], 0.6))
-            else:
-                cell.set_facecolor((1, 1, 1, 1))
-
-        cell.set_edgecolor('grey')
-        cell.set_linewidth(0.5)
-        cell.set_height(0.05 if not for_ppt else 0.1)
-
-    for key, cell in table.get_celld().items():
-        cell.set_fontsize(12)
-
-    return fig
-
-def fig_to_bytes(fig):
-    img_buf = BytesIO()
-    plt.savefig(img_buf, format='png', bbox_inches='tight', dpi=300)
-    plt.close(fig)
-    img_buf.seek(0)
-    return img_buf
-
-def create_ppt(slides_data, color_columns, title):
-    prs = Presentation()
-    for chunk in slides_data:
-        slide = prs.slides.add_slide(prs.slide_layouts[5])
-
-        # Add title to slide with smaller font and higher position
-        title_box = slide.shapes.title
-        title_box.text = title
-        title_box.text_frame.paragraphs[0].font.size = Inches(0.3)  # Smaller text size
-        title_box.top = Inches(0.1)  # Higher position
-
-        # Create a formatted table as a matplotlib figure
-        fig = create_formatted_table_matplotlib(chunk, color_columns, for_ppt=True)
-        img_buf = fig_to_bytes(fig)
+        # Clean up the temporary input file (no longer needed after conversion)
+        os.remove(temp_input_path)
         
-        # Add image to slide with higher position
-        slide.shapes.add_picture(img_buf, Inches(0.4), Inches(1.0), width=Inches(9))  # Adjust position
+        return output_path  # Return the path to the converted PNG file
+
+    except Exception as e:
+        raise ValueError(f"Error processing image: {e}")
+
+
+# Function to process multiple files concurrently
+def process_files_concurrently(files):
+    # Process files in parallel and return converted paths
+    with ThreadPoolExecutor() as executor:
+        results = list(executor.map(convert_image_to_png, files))
+    return results
+
+
+# Function to create PowerPoint slide with selected images and title text
+def create_ppt_from_selected_images(uploaded_files, num_slides, images_per_slide, titles):
+    prs = Presentation()
+
+    # Slide margin in inches (1/4 inch margin)
+    slide_margin = Inches(0.25)
+
+    # Title space at the top of the slide (1/2 inch)
+    title_space = Inches(0.5)
+
+    # Loop over the number of slides
+    for slide_idx in range(num_slides):
+        slide_layout = prs.slide_layouts[5]  # Blank layout
+        slide = prs.slides.add_slide(slide_layout)
+        
+        # Get images for the current slide
+        selected_images = images_per_slide[slide_idx]
+        slide_title = titles[slide_idx]
+
+        # Slide dimensions (inches)
+        slide_width = prs.slide_width
+        slide_height = prs.slide_height
+
+        # Calculate the available space after accounting for margins and title space
+        available_width = slide_width - 2 * slide_margin
+        available_height = slide_height - title_space - 2 * slide_margin
+
+        # Calculate positions to place images on the slide
+        max_images_per_row = 2  # Two images per row
+        image_spacing = Inches(0.2)  # Space between images
+        images_in_current_slide = len(selected_images)
+
+        # Calculate the width and height of each image based on available space
+        if images_in_current_slide == 1:
+            image_width = available_width
+            image_height = available_height
+        else:
+            max_images_per_row = min(max_images_per_row, images_in_current_slide)
+            image_width = (available_width - (max_images_per_row - 1) * image_spacing) / max_images_per_row
+            num_rows = (images_in_current_slide + max_images_per_row - 1) // max_images_per_row
+            image_height = (available_height - (num_rows - 1) * image_spacing) / num_rows
+
+        # Add the title text at the top
+        title_shape = slide.shapes.title
+        title_shape.text = slide_title
+        title_shape.left = slide_margin
+        title_shape.top = slide_margin
+        title_shape.width = slide_width - 2 * slide_margin  # Full width minus margins
+        title_shape.height = title_space  # Fixed height for the title area
+
+        # Loop through the selected images for the current slide
+        x_offset = slide_margin
+        y_offset = slide_margin + title_space  # Start placing images below the title
+
+        for i, img_file in enumerate(selected_images):
+            image = Image.open(img_file)
+            img_width, img_height = image.size
+
+            # Scale image while preserving aspect ratio
+            aspect_ratio = img_width / img_height
+            new_width = image_width
+            new_height = image_width / aspect_ratio
+
+            # If the new height exceeds the available height, adjust the width and height
+            if new_height > image_height:
+                new_height = image_height
+                new_width = image_height * aspect_ratio
+
+            # Position the images in a grid-like fashion (2 images per row)
+            left = x_offset
+            top = y_offset
+
+            # Add the image to the slide
+            with io.BytesIO() as image_stream:
+                image.save(image_stream, format="PNG")
+                image_stream.seek(0)
+                slide.shapes.add_picture(image_stream, left, top, width=new_width, height=new_height)
+
+            # Update x_offset for the next image (to arrange in two columns)
+            x_offset += new_width + image_spacing
+
+            # If we have placed two images, reset x_offset and move to the next row
+            if (i + 1) % max_images_per_row == 0:
+                x_offset = slide_margin
+                y_offset += new_height + image_spacing
 
     return prs
 
-def export_to_excel(df, color_columns, filename='edited_table.xlsx'):
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, sheet_name='Sheet1', index=False)
 
-        workbook = writer.book
-        worksheet = writer.sheets['Sheet1']
+# Streamlit UI
+st.title("Image to PowerPoint Converter")
 
-        for i, col in enumerate(df.columns):
-            if col in color_columns and pd.api.types.is_numeric_dtype(df[col]):
-                worksheet.conditional_format(1, i, len(df), i, {
-                    'type': 'data_bar',
-                    'bar_color': '#0072B8'  # Blue color
-                })
+st.write(
+    "Upload your image files (JPG, PNG, SVG, TIFF), and I will convert them into PowerPoint slides. "
+    "For each slide, you can select up to 4 images to place on it, and you can set a title for each slide."
+)
 
-    output.seek(0)
-    return output
+# File uploader
+uploaded_files = st.file_uploader("Choose image files", type=["jpg", "jpeg", "png", "svg", "tiff"], accept_multiple_files=True)
 
-# Streamlit app
-st.title("Conditional Formatting")
+# Store the converted files in session state
+if 'converted_files' not in st.session_state:
+    st.session_state.converted_files = []
 
-st.markdown("---")
+if uploaded_files:
+    # Convert the uploaded files to PNG format if not already converted
+    if not st.session_state.converted_files:
+        st.write("Converting images to PNG...")
+        converted_files = process_files_concurrently(uploaded_files)
+        st.session_state.converted_files = converted_files  # Save the converted files to session state
 
-file_name = "aggregated.xlsx"
-st.markdown("""<h4 style='color: #007BA7;'>Download metadata template</h4>""", unsafe_allow_html=True)
-# Check if the file exists
-if os.path.exists(file_name):
-    # Create a download button
-    with open(file_name, "rb") as file:
-        st.download_button(
-            label="Download Metadata Template",
-            data=file,
-            file_name=file_name,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"  # MIME type for Excel files
+    # Show number of slides selector
+    num_slides = st.number_input("Select number of slides", min_value=1, max_value=len(st.session_state.converted_files), value=1)
+
+    # Prepare a list to hold selected images per slide and titles
+    images_per_slide = []
+    slide_titles = []
+
+    # Show multi-select options for each slide and title input
+    for slide_idx in range(num_slides):
+        st.subheader(f"Slide {slide_idx + 1}")
+        
+        # Title input for each slide
+        slide_title = st.text_input(f"Enter title for Slide {slide_idx + 1}", value=f"Slide {slide_idx + 1}")
+        slide_titles.append(slide_title)
+        
+        # Multi-select for images
+        selected_images = st.multiselect(
+            f"Select up to 4 images for Slide {slide_idx + 1}",
+            options=st.session_state.converted_files,
+            max_selections=4
         )
-else:
-    st.error(f"File '{file_name}' not found.")
+        images_per_slide.append(selected_images)
 
-st.markdown("---")
+    # Generate the PowerPoint file when user is ready
+    if st.button("Generate PowerPoint"):
+        if images_per_slide:
+            prs = create_ppt_from_selected_images(st.session_state.converted_files, num_slides, images_per_slide, slide_titles)
+            
+            # Save the PowerPoint file to a BytesIO stream
+            pptx_file = io.BytesIO()
+            prs.save(pptx_file)
+            pptx_file.seek(0)
 
-st.markdown("""<h4 style='color: #007BA7;'>Upload a table</h4>""", unsafe_allow_html=True)
-
-uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx"])
-
-if uploaded_file is not None:
-    df = pd.read_excel(uploaded_file)
-    df.replace('Not Provided', np.nan, inplace=True)
-    df = round_to_sig_figs(df)
-
-    st.markdown("""<h4 style='color: #007BA7;'>View uploaded table</h4>""", unsafe_allow_html=True)
-    # Create an expander for the DataFrame
-    with st.expander("View Imported Table", expanded=False):
-        st.write(df)
-
-    sort_columns = df.columns.tolist()
-
-    st.markdown("""<hr><h4 style='color: #007BA7;'>Sort table and highlight values</h4>""", unsafe_allow_html=True)
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("""<br><h4 style='color: #007BA7;'>Sort rows by:</h4>""", unsafe_allow_html=True)
-
-        selected_sort_columns = st.multiselect("", options=sort_columns, key = "verte")
-
-        if selected_sort_columns:
-            df = df.sort_values(by=selected_sort_columns)
-
-    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-    with col2:
-        st.markdown("""<br><h4 style='color: #007BA7;'>Highlight values in:</h4>""", unsafe_allow_html=True)
-
-        color_columns = st.multiselect("", options=numeric_cols, key = "midnight")
-
-    fig = create_formatted_table_matplotlib(df, color_columns)
-    st.pyplot(fig)
-
-    slides_data = [df[i:i + 5] for i in range(0, df.shape[0], 5)]
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("""<h4 style='color: #007BA7;'>Export to Powerpoint</h4>""", unsafe_allow_html=True)
-
-        ppt_title = st.text_input("Enter title for PowerPoint slides", "Title of the slide")
-        ppt_filename = st.text_input("Enter PowerPoint file name (without extension)", "formatted_table_presentation")
-        
-        if st.button("Export and Download PowerPoint"):
-            prs = create_ppt(slides_data, color_columns, ppt_title)
-            ppt_file_path = f"{ppt_filename}.pptx"  # Use custom filename
-            prs.save(ppt_file_path)
-
-            with open(ppt_file_path, "rb") as file:
-                st.download_button("Download PowerPoint", file, file_name=ppt_file_path, mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
-                
-            st.success("PowerPoint presentation created! You can download it below.")
-
-    with col2:
-        st.markdown("""<h4 style='color: #007BA7;'>Export to Excel Table</h4>""", unsafe_allow_html=True)
-        excel_filename = st.text_input("Enter Excel file name (without extension)", "formatted_table")
-        
-        if st.button("Export and Download Excel"):
-            excel_file = export_to_excel(df, color_columns)
-            excel_file_path = f"{excel_filename}.xlsx"  # Use custom filename
-            with open(excel_file_path, "wb") as file:
-                file.write(excel_file.getvalue())
-            st.download_button("Download Excel", excel_file, file_name=excel_file_path, mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-
-
-
-
-
-
-
-
-
-
-
-
-import streamlit as st
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-import numpy as np
-from io import BytesIO
-from pptx import Presentation
-from pptx.util import Inches
-
-# Function to add repeated column
-def add_repeated_column(df, repeat_count):
-    n = len(df)
-    repeated_values = np.repeat(np.arange(1, (n // repeat_count) + 2), repeat_count)[:n]
-    df['repeated_column'] = repeated_values
-    return df
-
-def split_groups(df):
-    return {group: group_df for group, group_df in df.groupby('group') if len(group_df) > 1}
-
-def round_to_sig_figs(x, sig_figs):
-    if x == 0:
-        return 0
-    else:
-        return round(x, sig_figs - int(np.floor(np.log10(abs(x)))) - 1)
-
-
-def create_bar_plot(data, x_param, y_param, fill_param, group_name, threshold):
-    plt.figure(figsize=(10, 6))
-    
-    # Create the bar plot with x and y flipped
-    bar_plot = sns.barplot(data=data, x=y_param, y=x_param, hue=fill_param, 
-                           estimator='mean', palette=["#1E90FF", "#1E3A78"], alpha=0.7)
-    
-    for i in range(len(data)):
-        plt.scatter(data[y_param].iloc[i], data[x_param].iloc[i], color='black', alpha=0.7, zorder=5)
-        
-        # Annotate bars with readout values if they exceed the threshold
-        if data[y_param].iloc[i] > threshold:
-            rounded_value = round_to_sig_figs(data[y_param].iloc[i], 3)
-            plt.text(data[y_param].iloc[i] + 1, i, f'{rounded_value}', 
-                    color='red', ha='left', va='center', fontsize=14)
-
-
-    # Set font size
-    plt.title(f"{group_name} - Dil.", fontsize=16)
-    plt.ylabel(None, fontsize=14)
-    plt.xlabel(fill_param, fontsize=14)
-    plt.legend(fontsize=14, title_fontsize='14', loc='upper right', bbox_to_anchor=(1.2, 1))
-    
-    # Adjust overall font size
-    plt.tick_params(labelsize=14)
-    plt.tight_layout()
-    
-    return plt
-
-# Function to create PowerPoint
-def create_ppt(plot_images):
-    prs = Presentation()
-    for img in plot_images:
-        slide = prs.slides.add_slide(prs.slide_layouts[5])  # Blank slide
-        left = top = Inches(1)
-        slide.shapes.add_picture(img, left, top, height=Inches(5))
-    ppt_buffer = BytesIO()
-    prs.save(ppt_buffer)
-    ppt_buffer.seek(0)
-    return ppt_buffer
-
-# Streamlit app
-st.title("Generate Bar Charts")
-
-# File upload
-uploaded_file = st.file_uploader("Choose a CSV or Excel file", type=["csv", "xlsx"])
-if uploaded_file:
-    if uploaded_file.name.endswith('.csv'):
-        df = pd.read_csv(uploaded_file)
-    else:
-        sheet_name = st.selectbox("Select sheet", pd.ExcelFile(uploaded_file).sheet_names)
-        df = pd.read_excel(uploaded_file, sheet_name=sheet_name)
-
-    # Column selection
-    names_col = st.selectbox("Select 'names' column", df.columns)
-    readouts_col = st.selectbox("Select 'readouts' column", df.columns)
-    class_col = st.selectbox("Select 'class' column", df.columns)
-    group_col = st.selectbox("Select 'group' column", df.columns)
-    
-    # Integer selector
-    analyte_count_per_plot = st.number_input("Select analyte count per plot", min_value=1, max_value=20, value=4)
-
-    # Threshold input
-    threshold = st.number_input("Set threshold for readouts", min_value=0.0, value=0.0)
-
-    # Process the data
-    df_final = (df.groupby([group_col, class_col])
-                .apply(lambda x: add_repeated_column(x, analyte_count_per_plot) if x[class_col].iloc[0] == 'analyte' else x)
-                .reset_index(drop=True))
-
-    uq_vals = df_final['repeated_column'].unique()
-    discrete_groups = split_groups(df_final)
-
-    # Create plots
-    plot_images = []
-    result_dict = {}
-    for val in uq_vals:
-        filtered_tables = {}
-        for group, disc_group in discrete_groups.items():
-            filtered_df = disc_group[(disc_group['repeated_column'] == val) | (disc_group['repeated_column'].isna())]
-            if filtered_df[class_col].notna().any():
-                filtered_tables[group] = filtered_df
-        
-        if filtered_tables:
-            result_dict[val] = filtered_tables
-            for group_name, data in filtered_tables.items():
-                # Skip plotting if the data has only one row
-                if len(data) <= 1:
-                    continue
-                
-                plt = create_bar_plot(data, names_col, readouts_col, class_col, group_name, threshold)
-                
-                # Display plot in Streamlit
-                st.pyplot(plt)
-
-                # Save plot to BytesIO for PowerPoint
-                img = BytesIO()
-                plt.savefig(img, format='png')
-                plt.close()
-                img.seek(0)
-                plot_images.append(img)
-
-    # Download PowerPoint
-    if st.button("Download PowerPoint"):
-        ppt_buffer = create_ppt(plot_images)
-        st.download_button("Download PPTX", ppt_buffer, file_name="plots.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
-
-
+            # Button to download the generated PowerPoint file
+            st.download_button(
+                label="Download PowerPoint",
+                data=pptx_file,
+                file_name="images_presentation.pptx",
+                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            )
 
