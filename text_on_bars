@@ -1,0 +1,77 @@
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
+
+# Create a sample DataFrame with varying number of subcategories per category
+data = {
+    'Category': ['A', 'A', 'A', 'A', 'B', 'B', 'C', 'C', 'C', 'C', 'C', 'D'],
+    'Subcategory': ['X', 'Y', 'Z', 'W', 'X', 'Y', 'X', 'Y', 'Z', 'W', 'V', "X"],
+    'Value': [10, 15, 20, 5, 30, 25, 40, 35, 45, 50, 60, 40]
+}
+
+df = pd.DataFrame(data)
+
+# Create a color palette based on the 'Subcategory' variable
+palette = sns.color_palette("Set2", n_colors=len(df['Subcategory'].unique()))
+
+# Create the plot with a larger figure size for horizontal bars
+fig, ax = plt.subplots(figsize=(10, 6))
+
+# Set the height of the bars
+bar_height = 0.2
+
+# Define the unique categories and subcategories
+categories = df['Category'].unique()
+subcategories = df['Subcategory'].unique()
+
+# Set a small gap between category groups
+gap_between_categories = 0.1  # Small gap between categories
+
+# Create a dictionary to store the positions for each category
+category_positions = {}
+
+# Calculate the y positions for each subcategory within each category
+y_offset = 0  # To offset for each category group
+for i, category in enumerate(categories):
+    category_positions[category] = []
+    subset = df[df['Category'] == category]
+    for j, subcategory in enumerate(subcategories):
+        if subcategory in subset['Subcategory'].values:
+            category_positions[category].append(y_offset)
+            y_offset += bar_height
+        else:
+            category_positions[category].append(None)  # No bar for missing subcategory
+    # Add a small gap after each category
+    y_offset += gap_between_categories
+
+# Plot horizontal bars for each category and subcategory
+for i, category in enumerate(categories):
+    subset = df[df['Category'] == category]
+    
+    for j, subcategory in enumerate(subcategories):
+        if subcategory in subset['Subcategory'].values:
+            sub_subset = subset[subset['Subcategory'] == subcategory]
+            bar = ax.barh(category_positions[category][j], sub_subset['Value'], height=bar_height,
+                          label=subcategory if i == 0 else "", color=palette[j])
+
+            # Determine the label for the subcategory (empty string for single-subcategory categories)
+            label = subcategory if len(subset['Subcategory'].unique()) > 1 else ""
+            
+            # Overlay the subcategory label directly above the bar
+            ax.text(0.8, category_positions[category][j], label,
+                    verticalalignment='center', horizontalalignment='center', fontsize=9, 
+                    color='black', fontweight='bold')
+
+# Set the y-ticks to be centered on each category group
+ax.set_yticks([np.mean([pos for pos in positions if pos is not None]) 
+               for positions in category_positions.values()])
+ax.set_yticklabels(categories)
+
+# Add labels and title
+ax.set_xlabel('Value')
+ax.set_ylabel('Category')
+ax.set_title('Grouped Horizontal Bar Chart with Subcategories')
+
+# Show the plot
+plt.show()
