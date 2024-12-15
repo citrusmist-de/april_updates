@@ -75,3 +75,171 @@ ax.set_title('Grouped Horizontal Bar Chart with Subcategories')
 
 # Show the plot
 plt.show()
+
+
+
+################
+
+import streamlit as st
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+from io import BytesIO
+from pptx import Presentation
+from pptx.util import Inches
+from cairosvg import svg2png  # We use cairosvg to convert SVG to PNG
+
+# Function to generate an SVG plot and return it as a buffer
+def generate_svg_plot(data=None):
+    if data is None:
+        # Default example data
+        data = np.random.randn(100)
+    
+    # Create a simple seaborn plot
+    plt.figure(figsize=(6, 4))
+    sns.histplot(data, kde=True)
+    
+    # Save the plot as SVG into a BytesIO buffer
+    buf = BytesIO()
+    plt.savefig(buf, format='svg')
+    buf.seek(0)
+    plt.close()
+    return buf
+
+# Function to convert SVG to PNG using cairosvg
+def convert_svg_to_png(svg_buf):
+    png_buf = BytesIO()
+    svg2png(file_obj=svg_buf, write_to=png_buf)
+    png_buf.seek(0)
+    return png_buf
+
+# Function to generate a set of plots with predefined keys
+def generate_and_display_plots():
+    plot_dict = {}
+    # Example fixed keys, no random number generation
+    predefined_keys = [
+        "1_1_1_1", "1_1_1_2", "1_1_1_3", "1_1_1_4",
+        "1_2_2_1", "1_2_2_2", "1_2_2_3", "1_2_2_4",
+        "2_1_3_1", "2_1_3_2", "2_2_3_3", "2_2_3_4"
+    ]
+    
+    # Generate and store plots for each predefined key
+    for key in predefined_keys:
+        svg_plot = generate_svg_plot()  # Get the SVG plot as a buffer
+        plot_dict[key] = svg_plot
+        
+    return plot_dict
+
+# Function to split dictionary keys into four parts
+def split_key(key):
+    return tuple(key.split('_'))
+
+# Function to group plots by a selected position value
+def group_plots_by_position(selected_position, plot_dict):
+    grouped_plots = {}
+    
+    for key, plot in plot_dict.items():
+        # Split the key to get the four parts
+        parts = split_key(key)
+        
+        # Get the value of the selected position
+        selected_value = parts[selected_position - 1]
+        
+        # Group plots by the selected position value
+        if selected_value not in grouped_plots:
+            grouped_plots[selected_value] = []
+        grouped_plots[selected_value].append((key, plot))
+    
+    return grouped_plots
+
+# Function to create PowerPoint presentation from grouped plots
+def create_pptx(grouped_plots):
+    prs = Presentation()
+    
+    # Generate slides with grouped plots
+    for value, plots in grouped_plots.items():
+        # Create a new slide
+        slide = prs.slides.add_slide(prs.slide_layouts[5])  # Blank slide
+        
+        # Add all plots with the same value at the selected position to the same slide
+        for i, (key, svg_plot) in enumerate(plots):
+            # Convert the SVG plot to PNG
+            png_buf = convert_svg_to_png(svg_plot)
+            
+            # Add the PNG image to the slide
+            slide.shapes.add_picture(png_buf, Inches(1), Inches(1 + (i * 3)), height=Inches(2))
+            
+            # Optionally, add a label to the slide to show the position and key
+            slide.shapes.title.text = f"Group: {value}"
+    
+    # Save the PowerPoint presentation to a BytesIO buffer
+    pptx_buf = BytesIO()
+    prs.save(pptx_buf)
+    pptx_buf.seek(0)
+    return pptx_buf
+
+# Streamlit app interface
+def main():
+    st.title("Streamlit Plot to PowerPoint Generator")
+    
+    # Generate and display plots
+    plot_dict = generate_and_display_plots()
+    
+    # Show all available plot keys
+    st.write("### Available Plots (Keys in the format 1_1_2_3):")
+    available_keys = list(plot_dict.keys())
+    st.write(available_keys)
+
+    # Allow user to select plots
+    selected_keys = st.multiselect("Select plots to include in the PowerPoint", available_keys)
+    
+    # Allow user to choose the position (1 to 4) to group by
+    selected_position = st.radio("Select the position to group by", [1, 2, 3, 4])
+    
+    if selected_keys:
+        # Filter the selected plot dict to only include selected keys
+        selected_plot_dict = {key: plot_dict[key] for key in selected_keys}
+        
+        # Group plots by the selected position
+        grouped_plots = group_plots_by_position(selected_position, selected_plot_dict)
+        
+        # Create the PowerPoint presentation
+        pptx_buf = create_pptx(grouped_plots)
+        
+        st.success("PowerPoint generated!")
+        
+        # Provide the PowerPoint file as a downloadable binary stream
+        st.download_button(
+            label="Download PowerPoint",
+            data=pptx_buf,
+            file_name="generated_presentation.pptx",
+            mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        )
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
