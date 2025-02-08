@@ -2,6 +2,8 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import openpyxl
+from io import BytesIO
 
 # Function to transform the plate data
 def transform_plate(input_data):
@@ -55,7 +57,6 @@ def transform_plate(input_data):
 
     return plate_384_rotated
 
-# Streamlit app
 def main():
     st.title("Plate Transformation Tool")
     
@@ -76,11 +77,28 @@ def main():
             st.subheader("Transformed Plate Data")
             st.write(output_plate)
             
+            # Convert the DataFrame to an Excel file in memory
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+                output_plate.to_excel(writer, index=False, sheet_name="Transformed Data")
+            output.seek(0)  # Move to the beginning of the file
+
+            # Add a download button
+            st.download_button(
+                label="Download as Excel",
+                data=output,
+                file_name="transformed_plate.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+            
         except Exception as e:
             st.error(f"Error processing the file: {e}")
 
 if __name__ == "__main__":
     main()
+
+
+
 
 
 
